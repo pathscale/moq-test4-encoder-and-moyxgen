@@ -298,7 +298,7 @@ LICENSE file in the root directory of this source tree.
         aStreamWorker = new Worker("../capture/a_capture.js", { type: "module" });
 
         // Create a new workers for video / audio frames encode
-        vEncoderWorker = new Worker("../encode/v_encoder.js", { type: "module" });
+        vEncoderWorker = new Worker("../encode/v_encoder.js?v=" + Date.now(), { type: "module" });
         aEncoderWorker = new Worker("../encode/a_encoder.js", { type: "module" });
 
         // Create send worker

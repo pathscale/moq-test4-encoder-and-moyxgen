@@ -21,6 +21,7 @@ let workerState = StateEnum.Created
 let encoderMaxQueueSize = 5
 let keyframeEvery = 60
 let insertNextKeyframe = false
+let cachedAvcDecoderConfig = undefined
 
 // Encoder
 const initVideoEncoder = {
@@ -38,7 +39,18 @@ let vEncoder = null
 
 function handleChunk (chunk, metadata) {
   // decoderConfig in h264 is AVCDecoderConfigurationRecord
-  const frame_metadata = (metadata != undefined && metadata.decoderConfig != undefined && "description" in metadata.decoderConfig) ? metadata.decoderConfig.description : undefined;
+  let frame_metadata = (metadata != undefined && metadata.decoderConfig != undefined && "description" in metadata.decoderConfig) ? metadata.decoderConfig.description : undefined;
+
+  // Cache the AVC decoder config when first received
+  if (frame_metadata != undefined) {
+    cachedAvcDecoderConfig = frame_metadata.slice(0)
+  }
+
+  // Re-attach cached config on every keyframe so late-joining subscribers can configure their decoders
+  if (frame_metadata == undefined && chunk.type === 'key' && cachedAvcDecoderConfig != undefined) {
+    frame_metadata = cachedAvcDecoderConfig
+  }
+
   const msg = { type: 'vchunk', seqId: chunkDeliveredCounter++, chunk, metadata: frame_metadata, timebase: WEBCODECS_TIMESCALE}
 
   // Assume we are sending AVCDecoderConfigurationRecord in the metadata.description
@@ -72,6 +84,7 @@ self.addEventListener('message', async function (e) {
 
     // eslint-disable-next-line no-undef
     vEncoder = new VideoEncoder(initVideoEncoder)
+    cachedAvcDecoderConfig = undefined
 
     vEncoder.configure(encoderConfig)
     if ('encoderMaxQueueSize' in e.data) {
