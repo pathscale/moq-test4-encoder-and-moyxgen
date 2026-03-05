@@ -14,4 +14,4 @@ jobs:
       - run: bun install
       - run: bun run build
       - run: cp dist/index.html dist/200.html
-      - run: npx surge ./dist moq-test4-encoder-and-moyxgen.surge.sh --token ${{ secrets.SURGE_TOKEN }}
+      - run: npx surge ./dist moq-test4-encoder-and-moyxgen-ci.surge.sh --token ${{ secrets.SURGE_TOKEN }}
