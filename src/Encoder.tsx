@@ -314,17 +314,20 @@ export function Encoder() {
     persistTrackPrefix(prefix); // Persist to localStorage so player can discover
     const tracks = getTrackNames(prefix);
 
-    // Load certificate hash for self-signed relay certs (binary file served from app origin)
+    // Load certificate hash only for localhost (self-signed certs)
     let certHash: ArrayBuffer | null = null;
-    try {
-      const certUrl = `${location.origin}/certs/certificate_fingerprint.hex`;
-      const resp = await fetch(certUrl);
-      if (resp.ok) {
-        certHash = await resp.arrayBuffer();
-        addDiag("info", `Loaded certificate fingerprint from ${certUrl} (${certHash.byteLength} bytes)`);
+    const isLocalhost = relayUrl().includes("localhost") || relayUrl().includes("127.0.0.1");
+    if (isLocalhost) {
+      try {
+        const certUrl = `${location.origin}/certs/certificate_fingerprint.hex`;
+        const resp = await fetch(certUrl);
+        if (resp.ok) {
+          certHash = await resp.arrayBuffer();
+          addDiag("info", `Loaded certificate fingerprint from ${certUrl} (${certHash.byteLength} bytes)`);
+        }
+      } catch (err) {
+        addDiag("warning", `Could not load cert hash: ${err}`);
       }
-    } catch (err) {
-      addDiag("warning", `Could not load cert hash: ${err}`);
     }
 
     const config: MuxerSenderConfig = {
@@ -473,9 +476,8 @@ export function Encoder() {
               disabled={isPublishing()}
               class="w-full mt-1 bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm font-mono disabled:opacity-50"
             >
-              <option value="https://localhost:4433/moq">https://localhost:4433/moq (moxygen)</option>
-              <option value="http://localhost:4443">http://localhost:4443 (moq-dev)</option>
-              <option value="https://localhost:4434/moq">https://localhost:4434/moq (moqtail)</option>
+              <option value="https://localhost:4433/moq">https://localhost:4433/moq</option>
+              <option value="https://moxygen-relay.nofilter.io/moq">https://moxygen-relay.nofilter.io/moq</option>
             </select>
           </label>
           <label class="block">

@@ -43,7 +43,7 @@ export function Player() {
   const [audioJitterMs, setAudioJitterMs] = createSignal(300);
   const [videoJitterMs, setVideoJitterMs] = createSignal(300);
   const [playerBufferMs, setPlayerBufferMs] = createSignal(100);
-  const [playerMaxBufferMs, setPlayerMaxBufferMs] = createSignal(800);
+  const [playerMaxBufferMs, setPlayerMaxBufferMs] = createSignal(300);
 
   // Stats
   const [videoLatencyMs, setVideoLatencyMs] = createSignal(0);
@@ -86,7 +86,6 @@ export function Player() {
   let sourceBufferAudioWorklet: AudioWorkletNode | null = null;
   let audioSharedBuffer: any = null;
   let systemAudioLatencyMs = 0;
-  let audioState = AUDIO_STOPPED;
 
   // Latency checkers
   let latencyAudioChecker: any = null;
@@ -393,6 +392,9 @@ export function Player() {
           bufferSizeSamples,
           audioCtx.sampleRate
         );
+        audioSharedBuffer.SetCallbacks((data: any) => {
+          addDiag("dropped", JSON.stringify(data));
+        });
 
         sourceBufferAudioWorklet.port.postMessage({
           type: "iniabuffer",
@@ -474,25 +476,15 @@ export function Player() {
       setAudioBufferMs(stats.queueLengthMs);
 
       if (stats.isPlaying) {
-        audioState = AUDIO_PLAYING;
-      }
-
-      // Detect underrun
-      if (audioState === AUDIO_PLAYING && stats.queueLengthMs < 10) {
-        audioSharedBuffer.Pause();
-        audioState = AUDIO_STOPPED;
-        console.warn(
-          `[AUDIO-REBUFFER] Underrun (${stats.queueLengthMs}ms left)`
-        );
+        buffersInfo.renderer.audio.state = AUDIO_PLAYING;
       }
 
       // Start playback when buffer is full enough
       if (
         buffersInfo.renderer.audio.lengthMs >= playerBufferMs() &&
-        audioState === AUDIO_STOPPED
+        buffersInfo.renderer.audio.state === AUDIO_STOPPED
       ) {
         audioSharedBuffer.Play();
-        audioState = AUDIO_PLAYING;
       }
     }
 
@@ -570,17 +562,20 @@ export function Player() {
     const ns = namespace().split("/");
     const tracks = getTrackNames(trackNamePrefix());
 
-    // Load certificate hash for self-signed relay certs (binary file served from app origin)
+    // Load certificate hash only for localhost (self-signed certs)
     let certHash: ArrayBuffer | null = null;
-    try {
-      const certUrl = `${location.origin}/certs/certificate_fingerprint.hex`;
-      const resp = await fetch(certUrl);
-      if (resp.ok) {
-        certHash = await resp.arrayBuffer();
-        addDiag("info", `Loaded certificate fingerprint from ${certUrl} (${certHash.byteLength} bytes)`);
+    const isLocalhost = relayUrl().includes("localhost") || relayUrl().includes("127.0.0.1");
+    if (isLocalhost) {
+      try {
+        const certUrl = `${location.origin}/certs/certificate_fingerprint.hex`;
+        const resp = await fetch(certUrl);
+        if (resp.ok) {
+          certHash = await resp.arrayBuffer();
+          addDiag("info", `Loaded certificate fingerprint from ${certUrl} (${certHash.byteLength} bytes)`);
+        }
+      } catch (err) {
+        addDiag("warning", `Could not load cert hash: ${err}`);
       }
-    } catch (err) {
-      addDiag("warning", `Could not load cert hash: ${err}`);
     }
 
     const config: DownloaderConfig = {
@@ -592,13 +587,13 @@ export function Player() {
           alias: 0,
           namespace: ns,
           name: tracks.audio,
-          authInfo: "",
+          authInfo: "secret",
         },
         video: {
           alias: 1,
           namespace: ns,
           name: tracks.video,
-          authInfo: "",
+          authInfo: "secret",
         },
       },
     };
@@ -653,7 +648,7 @@ export function Player() {
       audioSharedBuffer.Clear();
       audioSharedBuffer = null;
     }
-    audioState = AUDIO_STOPPED;
+    buffersInfo.renderer.audio.state = AUDIO_STOPPED;
 
     canvasCtx = null;
     wtVideoJitterBuffer = null;
@@ -723,9 +718,8 @@ export function Player() {
               disabled={isPlaying()}
               class="w-full mt-1 bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm font-mono disabled:opacity-50"
             >
-              <option value="https://localhost:4433/moq">https://localhost:4433/moq (moxygen)</option>
-              <option value="http://localhost:4443">http://localhost:4443 (moq-dev)</option>
-              <option value="https://localhost:4434/moq">https://localhost:4434/moq (moqtail)</option>
+              <option value="https://localhost:4433/moq">https://localhost:4433/moq</option>
+              <option value="https://moxygen-relay.nofilter.io/moq">https://moxygen-relay.nofilter.io/moq</option>
             </select>
           </label>
           <label class="block">
