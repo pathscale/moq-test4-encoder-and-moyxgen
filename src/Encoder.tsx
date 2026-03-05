@@ -263,11 +263,7 @@ export function Encoder() {
           width: { ideal: videoWidth() },
           height: { ideal: videoHeight() },
         },
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
+        audio: {},
       });
     } catch (err) {
       addDiag("error", `getUserMedia failed: ${err}`);
@@ -336,7 +332,7 @@ export function Encoder() {
       urlPath: "",
       keepAlivesEveryMs: 5000,
       certificateHash: certHash,
-      usePublishNamespace: false,
+      usePublishNamespace: true,
       moqTracks: {
         audio: {
           namespace: ns,
